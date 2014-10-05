@@ -1,0 +1,83 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function mysearch_menu() {
+  // Create custom page
+  $items['mysearch'] = array(
+    'title' => 'Simple Search',
+    'page callback' => 'mysearch_searchpage',
+    'access arguments' => 'access mysearch',
+    'type' => MENU_SUGGESTED_ITEM,
+    'file' => 'mysearch.pages.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function mysearch_permission() {
+  return array( 
+    'access mysearch' => array(
+      'title' => t('Access My Search'),
+      'description' => t( 'Allows a user to access search results' )
+    )
+  );
+}
+
+/**
+ * Implements hook_theme().
+ */
+function mysearch_theme() {
+  return array(
+    'mysearch_result' => array(
+      'variables' => array('item' => NULL),
+      'template' => 'themes/mysearch-result-item'
+    ),
+    'mysearch_results' => array(
+      'variables' => array('content' => NULL),
+      'template' => 'themes/mysearch-results-page'
+    ),
+  );
+}
+
+/**
+ * Returns mysearch result.
+ *
+ * @param $keys
+ *   Keyword query to search on.
+ *
+ * @return
+ *   Renderable array of search results. No return value if $keys are not supplied.
+ */
+function mysearch_search_data($key) {
+  $query = db_select('node', 'n')
+          ->fields('n', array('nid', 'title'));
+  $query -> join('field_data_body', 'body', 'n.nid = body.entity_id');
+  $query -> condition (
+            db_or()
+              ->condition('n.title', '%' . db_like($key) . '%', 'LIKE')
+              ->condition('body.body_value', '%' . db_like($key) . '%', 'LIKE')
+              ->condition('body.body_summary', '%' . db_like($key) . '%', 'LIKE')
+          )
+          ->condition('n.status', 1)
+          ->addTag('node_access');
+  
+  // Load results.
+  $result = $query->extend('PagerDefault')->limit(10)->execute();
+  $items = array();
+  if ($result) {
+    foreach ($result as $value) {
+      $item = array(
+        'url' => url('node/' . $value->nid, array('absolute' => TRUE)),
+        'title' => $value->title,
+      );
+      $items .= theme('mysearch_result', $item);
+    }
+  }
+
+  return $items;
+}
